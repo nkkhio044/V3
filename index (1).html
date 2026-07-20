@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WhatsApp AI Bot — Multi-User Dashboard</title>
+<style>
+  :root{
+    --bg: #0b1410;
+    --panel: #101d17;
+    --panel-border: #1d3327;
+    --teal: #25d366;
+    --teal-dim: #1a9950;
+    --text: #eaf3ec;
+    --text-dim: #8fa89a;
+    --danger: #e5484d;
+    --amber: #f0b429;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI", Roboto, -apple-system, sans-serif;
+    min-height:100vh; padding:40px 20px;
+  }
+  .wrap{ max-width:1000px; margin:0 auto; }
+  header{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:28px; flex-wrap:wrap; gap:12px; }
+  header .tag{ color:var(--teal); font-size:13px; letter-spacing:.14em; text-transform:uppercase; font-weight:600; }
+  header h1{ margin:6px 0 6px; font-size:26px; font-weight:700; }
+  header p{ color:var(--text-dim); margin:0; font-size:14px; }
+
+  .btn{
+    padding:11px 18px; border:none; border-radius:9px; background:var(--teal);
+    color:#06170e; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  .btn:hover{ background:#2fe374; }
+  .btn.secondary{ background:transparent; border:1px solid var(--panel-border); color:var(--text); font-weight:600; }
+  .btn.secondary:hover{ border-color:var(--teal-dim); }
+  .btn.danger{ background:transparent; border:1px solid var(--danger); color:var(--danger); }
+  .btn.small{ padding:7px 12px; font-size:12.5px; }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+  .bots-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:16px; margin-bottom:30px; }
+  .bot-card{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:14px; padding:20px;
+  }
+  .bot-card .name{ font-size:16px; font-weight:700; margin:0 0 2px; }
+  .bot-card .owner{ font-size:12.5px; color:var(--text-dim); margin:0 0 10px; }
+  .bot-card .bio{ font-size:12.5px; color:var(--text-dim); margin:0 0 14px; line-height:1.4; }
+
+  .status-row{ display:flex; align-items:center; font-size:13px; margin-bottom:14px; }
+  .status-dot{ width:8px; height:8px; border-radius:50%; margin-right:7px; background:#5a6b62; }
+  .status-dot.connected{ background:var(--teal); box-shadow:0 0 6px var(--teal); }
+  .status-dot.connecting, .status-dot.reconnecting{ background:var(--amber); }
+  .status-dot.error, .status-dot.logged_out{ background:var(--danger); }
+
+  .card-actions{ display:flex; gap:8px; }
+
+  .empty-state{
+    text-align:center; padding:50px 20px; color:var(--text-dim); font-size:14px;
+    border:1px dashed var(--panel-border); border-radius:14px; margin-bottom:30px;
+  }
+
+  /* modal */
+  .modal-backdrop{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55);
+    align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; z-index:10;
+  }
+  .modal-backdrop.open{ display:flex; }
+  .modal{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:14px;
+    padding:26px; width:100%; max-width:460px;
+  }
+  .modal h2{ margin:0 0 4px; font-size:17px; }
+  .modal .sub{ color:var(--text-dim); font-size:13px; margin:0 0 18px; }
+
+  label{ display:block; font-size:13px; color:var(--text-dim); margin:14px 0 6px; }
+  label:first-of-type{ margin-top:0; }
+  input, textarea{
+    width:100%; background:#0c1712; border:1px solid var(--panel-border); color:var(--text);
+    padding:10px 12px; border-radius:9px; font-size:14px; outline:none; font-family:inherit;
+  }
+  textarea{ resize:vertical; min-height:56px; }
+  input:focus, textarea:focus{ border-color:var(--teal-dim); }
+
+  .file-row{
+    margin-top:6px; padding:12px; border:1px dashed var(--panel-border); border-radius:9px;
+    font-size:12.5px; color:var(--text-dim);
+  }
+  .file-row input[type=file]{ margin-top:8px; padding:6px 0; border:none; background:none; }
+
+  .api-block{
+    margin-top:16px; padding:14px; border:1px dashed var(--teal-dim); border-radius:10px;
+    background:rgba(37,211,102,0.05);
+  }
+  .api-block .flag{
+    display:inline-block; font-size:11px; font-weight:700; letter-spacing:.06em; color:#06170e;
+    background:var(--teal); padding:3px 8px; border-radius:5px; margin-bottom:8px;
+  }
+  .api-block p{ margin:0 0 10px; font-size:12.5px; color:var(--text-dim); line-height:1.5; }
+
+  .error{ color:var(--danger); font-size:13px; margin-top:12px; display:none; }
+  .modal-actions{ display:flex; gap:10px; margin-top:20px; }
+  .modal-actions .btn{ flex:1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="tag">Self-hosted · Multi-user</div>
+      <h1>WhatsApp AI Bot Dashboard</h1>
+      <p>Koi bhi apna creds.json daal ke apna khud ka bot bana, start/stop kar sakta hai.</p>
+    </div>
+    <button class="btn" id="open-create">+ Naya Bot Banao</button>
+  </header>
+
+  <div id="bots-container"></div>
+</div>
+
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal">
+    <h2>Naya Bot Banao</h2>
+    <p class="sub">Apni details bharo aur apna WhatsApp session (creds.json) upload karo.</p>
+
+    <form id="create-form">
+      <label for="botName">Bot ka naam</label>
+      <input id="botName" name="botName" placeholder="e.g. Dox" required>
+
+      <label for="ownerName">Owner ka naam</label>
+      <input id="ownerName" name="ownerName" placeholder="e.g. Uday" required>
+
+      <label for="ownerNumber">Owner ka WhatsApp number (country code ke saath)</label>
+      <input id="ownerNumber" name="ownerNumber" placeholder="e.g. 917412902088" required>
+
+      <label for="bio">Bio (bot ke !about me dikhega, AI ko context ke liye bhi)</label>
+      <textarea id="bio" name="bio" placeholder="e.g. Coding aur gaming me interested, college student"></textarea>
+
+      <label for="prefix">Command prefix</label>
+      <input id="prefix" name="prefix" placeholder="!" value="!">
+
+      <div class="file-row">
+        📄 Apna <b>creds.json</b> upload karo (WhatsApp session file)
+        <input id="credsFile" name="credsFile" type="file" accept="application/json,.json" required>
+      </div>
+
+      <div class="api-block">
+        <span class="flag">👉 API KEY YAHAN DAALO</span>
+        <p>Ye tumhari Anthropic (Claude) API key hai — isi se ye bot AI reply generate karega. Key <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--teal)">console.anthropic.com</a> se milti hai. Har bot ki apni alag key hoti hai.</p>
+        <input id="apiKey" name="apiKey" type="password" placeholder="sk-ant-..." required>
+      </div>
+
+      <div class="error" id="error-box"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="cancel-create">Cancel</button>
+        <button type="submit" class="btn" id="submit-btn">Bot Banao</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const container = document.getElementById('bots-container');
+const backdrop = document.getElementById('modal-backdrop');
+const openBtn = document.getElementById('open-create');
+const cancelBtn = document.getElementById('cancel-create');
+const form = document.getElementById('create-form');
+const errorBox = document.getElementById('error-box');
+const submitBtn = document.getElementById('submit-btn');
+
+openBtn.onclick = () => { backdrop.classList.add('open'); };
+cancelBtn.onclick = () => { backdrop.classList.remove('open'); };
+backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.classList.remove('open'); };
+
+const statusLabels = {
+  stopped: 'Stopped',
+  connecting: 'Connecting...',
+  connected: 'Connected',
+  reconnecting: 'Reconnecting...',
+  logged_out: 'Logged out',
+  error: 'Error',
+};
+
+function botCardHtml(bot) {
+  const canStart = bot.status === 'stopped' || bot.status === 'error' || bot.status === 'logged_out';
+  const canStop = bot.status === 'connected' || bot.status === 'connecting' || bot.status === 'reconnecting';
+  return `
+    <div class="bot-card" data-id="${bot.id}">
+      <p class="name">🤖 ${bot.botName}</p>
+      <p class="owner">Owner: ${bot.ownerName} · ${bot.ownerNumber}</p>
+      ${bot.bio ? `<p class="bio">${bot.bio}</p>` : ''}
+      <div class="status-row">
+        <span class="status-dot ${bot.status}"></span>
+        <span>${statusLabels[bot.status] || bot.status}</span>
+      </div>
+      ${bot.statusMessage ? `<p class="bio">${bot.statusMessage}</p>` : ''}
+      <div class="card-actions">
+        <button class="btn small" data-action="start" ${canStart ? '' : 'disabled'}>Start</button>
+        <button class="btn small secondary" data-action="stop" ${canStop ? '' : 'disabled'}>Stop</button>
+        <button class="btn small danger" data-action="delete">Delete</button>
+      </div>
+    </div>`;
+}
+
+async function loadBots() {
+  const res = await fetch('/api/bots');
+  const bots = await res.json();
+  if (!bots.length) {
+    container.innerHTML = `<div class="empty-state">Abhi tak koi bot nahi bana. "+ Naya Bot Banao" dabao.</div>`;
+    return;
+  }
+  container.innerHTML = `<div class="bots-grid">${bots.map(botCardHtml).join('')}</div>`;
+}
+
+container.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const card = e.target.closest('.bot-card');
+  const id = card.dataset.id;
+  const action = btn.dataset.action;
+
+  if (action === 'delete') {
+    if (!confirm('Ye bot delete karna hai? Session bhi delete ho jayega.')) return;
+    await fetch(`/api/bots/${id}`, { method: 'DELETE' });
+    loadBots();
+    return;
+  }
+
+  btn.disabled = true;
+  await fetch(`/api/bots/${id}/${action}`, { method: 'POST' });
+  loadBots();
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBox.style.display = 'none';
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Ban raha hai...';
+
+  const fd = new FormData(form);
+
+  try {
+    const res = await fetch('/api/bots', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) {
+      errorBox.textContent = data.error || 'Kuch galat ho gaya.';
+      errorBox.style.display = 'block';
+      return;
+    }
+    form.reset();
+    backdrop.classList.remove('open');
+    loadBots();
+  } catch (err) {
+    errorBox.textContent = 'Server se connect nahi ho paaya.';
+    errorBox.style.display = 'block';
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Bot Banao';
+  }
+});
+
+loadBots();
+setInterval(loadBots, 3000);
+</script>
+</body>
+</html>
